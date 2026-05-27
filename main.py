@@ -1,5 +1,19 @@
-from fastapi import FastAPI, status, HTTPException
+from enum import Enum
+
+from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
+
+API_TOKEN = "123"
+
+
+def common_api_token(api_token: str):
+    if api_token != API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido",
+        )
+    return {"api_token": api_token}
+
 
 app = FastAPI(
     title="Aula",
@@ -15,9 +29,8 @@ app = FastAPI(
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
+    dependencies=[Depends(common_api_token)],
 )
-
-API_TOKEN = "123"
 
 
 @app.get("/teste", summary="Hello World")
@@ -35,13 +48,7 @@ def soma(numero1: int, numero2: int):
 
 # http://127.0.0.1:8000/soma_formato2?numero1=3&numero2=2
 @app.post("/soma/v2", summary="Soma Formato2", tags=["Operações matemáticas"])
-def soma_formato2(numero1: int, numero2: int, api_token: str):
-    if api_token != API_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de autenticação inválido",
-        )
-
+def soma_formato2(numero1: int, numero2: int):
     total = numero1 + numero2
     return {"resultado": total}
 
@@ -49,7 +56,6 @@ def soma_formato2(numero1: int, numero2: int, api_token: str):
 class Numeros(BaseModel):
     numero1: int = Field(..., description="O primeiro número a ser somado")
     numero2: int = Field(..., description="O segundo número a ser somado")
-    api_token: str = Field(..., description="Token de autenticação para acessar o endpoint")
 
 class Resultado(BaseModel):
     resultado: int = Field(..., description="O resultado da soma dos dois números")
@@ -73,26 +79,44 @@ class Resultado(BaseModel):
     tags=["Operações matemáticas"],
 )
 def soma_formato3(numeros: Numeros):
-    
-    if numeros.api_token != API_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de autenticação inválido",
-        )
-    
-    
-    # Se o numero1 for negativo, retornar um erro
     if numeros.numero1 < 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="O número 1 deve ser um inteiro positivo",
         )
-    
+
     total = numeros.numero1 + numeros.numero2
     return {"resultado": total}
+
+
+class TipoOperacao(str, Enum):
+    soma = "soma"
+    subtracao = "subtracao"
+    multiplicacao = "multiplicacao"
+    divisao = "divisao"
+
+
+@app.post("/operacao_matematica", tags=["Operações matemáticas"])
+def operacao_matematica(numeros: Numeros, operacao: TipoOperacao):
+    if operacao == TipoOperacao.soma:
+        resultado = numeros.numero1 + numeros.numero2
+    elif operacao == TipoOperacao.subtracao:
+        resultado = numeros.numero1 - numeros.numero2
+    elif operacao == TipoOperacao.multiplicacao:
+        resultado = numeros.numero1 * numeros.numero2
+    elif operacao == TipoOperacao.divisao:
+        resultado = numeros.numero1 / numeros.numero2
+    return {"resultado": resultado}
+
+
+@app.post(
+    path="/soma_formato3",
+    tags=["Operações matemáticas"],
+)
+def soma_formato3_dep(numeros: Numeros):
+    return {"resultado": numeros.numero1 + numeros.numero2}
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000)
-
