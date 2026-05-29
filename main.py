@@ -6,6 +6,17 @@ from enum import Enum
 from fastapi import Depends, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
+from groq import Groq
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY"),
+)
+
+
 # ---------------------------------------------------------------------------
 # Configuração
 # ---------------------------------------------------------------------------
@@ -22,6 +33,7 @@ logger = logging.getLogger("fastapi")
 # ---------------------------------------------------------------------------
 # Modelos
 # ---------------------------------------------------------------------------
+
 
 class Numeros(BaseModel):
     numero1: int = Field(..., description="O primeiro número a ser somado")
@@ -42,6 +54,7 @@ class TipoOperacao(str, Enum):
 # ---------------------------------------------------------------------------
 # Dependências
 # ---------------------------------------------------------------------------
+
 
 def common_api_token(api_token: str) -> dict:
     if api_token != API_TOKEN:
@@ -78,6 +91,7 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # Rotas
 # ---------------------------------------------------------------------------
+
 
 @app.get("/teste", summary="Hello World")
 def hello_world():
@@ -145,6 +159,28 @@ def operacao_matematica(numeros: Numeros, operacao: TipoOperacao):
             )
         resultado = numeros.numero1 / numeros.numero2
     return {"resultado": resultado}
+
+
+class Historia(BaseModel):
+    tema: str = Field(..., description="O tema da história a ser gerada")
+
+
+@app.post("/gerar_historia")
+def gerar_historia(historia: Historia):
+    prompt = f"Escreva uma história sobre o tema: {historia.tema}."
+
+    chat_completion = client.chat.completions.create(
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        model="llama-3.1-8b-instant",
+    )
+    texto = chat_completion.choices[0].message.content
+
+    return {"historia": texto}
 
 
 # ---------------------------------------------------------------------------
